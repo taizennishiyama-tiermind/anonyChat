@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>匿名リアルタイムチャット</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'media', // or 'class'
+        theme: {
+          extend: {
+            colors: {
+              'corp-blue': '#00529B',
+              'corp-blue-light': '#007BFF',
+              'corp-gray': {
+                100: '#F7F9FA',
+                200: '#E1E8ED',
+                300: '#DAE1E7',
+                700: '#4A4A4A',
+                800: '#333333',
+                900: '#1A1A1A'
+              },
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      @keyframes fly-up {
+        0% {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(-80px) scale(0.5);
+          opacity: 0;
+        }
+      }
+      .animate-fly-up {
+        animation: fly-up 1s ease-out forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-corp-gray-100 dark:bg-corp-gray-900">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
