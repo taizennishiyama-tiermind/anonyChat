@@ -1,17 +1,38 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CommentIcon } from './icons';
 
 const HomePage: React.FC = () => {
   const [roomName, setRoomName] = useState('');
+  const [recentRooms, setRecentRooms] = useState<string[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const storedRooms = localStorage.getItem('recentRooms');
+    if (storedRooms) {
+      setRecentRooms(JSON.parse(storedRooms));
+    }
+  }, []);
+
+  const saveRoomToLocalStorage = (room: string) => {
+    let updatedRooms = [room, ...recentRooms.filter(r => r !== room)];
+    updatedRooms = updatedRooms.slice(0, 5); // Keep only the 5 most recent rooms
+    setRecentRooms(updatedRooms);
+    localStorage.setItem('recentRooms', JSON.stringify(updatedRooms));
+  };
 
   const handleJoinRoom = (e: React.FormEvent) => {
     e.preventDefault();
     if (roomName.trim()) {
+      saveRoomToLocalStorage(roomName.trim());
       navigate(`/room/${encodeURIComponent(roomName.trim())}`);
     }
+  };
+
+  const handleSelectRecentRoom = (room: string) => {
+    saveRoomToLocalStorage(room);
+    navigate(`/room/${encodeURIComponent(room)}`);
   };
 
   return (
@@ -51,6 +72,25 @@ const HomePage: React.FC = () => {
               ルームを作成 / 参加
             </button>
           </form>
+
+          {recentRooms.length > 0 && (
+            <div className="mt-8 pt-8 border-t border-corp-gray-200 dark:border-corp-gray-700">
+              <h2 className="text-xl font-bold text-corp-gray-800 dark:text-white mb-4">
+                最近のルーム
+              </h2>
+              <div className="space-y-3">
+                {recentRooms.map((room) => (
+                  <button
+                    key={room}
+                    onClick={() => handleSelectRecentRoom(room)}
+                    className="w-full text-left bg-corp-gray-100 dark:bg-corp-gray-700 hover:bg-corp-gray-200 dark:hover:bg-corp-gray-600 px-4 py-3 rounded-lg text-corp-gray-800 dark:text-white transition-colors duration-200"
+                  >
+                    {room}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <footer className="text-center mt-8 text-sm text-corp-gray-700 dark:text-corp-gray-300">
           <p>&copy; {new Date().getFullYear()} 匿名リアルタイムチャット. All rights reserved.</p>
