@@ -22,17 +22,23 @@ const HomePage: React.FC = () => {
     localStorage.setItem('recentRooms', JSON.stringify(updatedRooms));
   };
 
+  const navigateToRoom = (room: string) => {
+    saveRoomToLocalStorage(room);
+    const allowHomeKey = `allowHomeNavigation:${room}`;
+    sessionStorage.setItem(allowHomeKey, 'true');
+    navigate(`/room/${encodeURIComponent(room)}`, { state: { allowHomeNavigation: true } });
+  };
+
   const handleJoinRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (roomName.trim()) {
-      saveRoomToLocalStorage(roomName.trim());
-      navigate(`/room/${encodeURIComponent(roomName.trim())}`);
+    const trimmedRoom = roomName.trim();
+    if (trimmedRoom) {
+      navigateToRoom(trimmedRoom);
     }
   };
 
   const handleSelectRecentRoom = (room: string) => {
-    saveRoomToLocalStorage(room);
-    navigate(`/room/${encodeURIComponent(room)}`);
+    navigateToRoom(room);
   };
 
   return (
