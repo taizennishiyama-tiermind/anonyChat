@@ -15,6 +15,10 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
   const urlRegex = /((https?:\/\/|www\.)[^\s]+)/gi;
 
+  const linkClassName = isSender
+    ? 'underline text-white decoration-white/70 underline-offset-2 hover:decoration-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
+    : 'underline text-corp-blue-light hover:text-corp-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-corp-blue-light/60';
+
   const renderTextWithLinks = () => {
     const nodes: Array<string | JSX.Element> = [];
     let lastIndex = 0;
@@ -35,7 +39,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline text-corp-blue-light hover:text-corp-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-corp-blue-light/60"
+          className={linkClassName}
         >
           {matchText}
         </a>
@@ -59,14 +63,16 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
   return (
     <div className={`flex items-end gap-2 group ${isSender ? 'justify-end' : 'justify-start'}`}>
-      <div className={`flex flex-col max-w-sm md:max-w-md lg:max-w-lg ${isSender ? 'items-end' : 'items-start'}`}>
-        <div className={`px-4 py-3 rounded-2xl break-words ${
+      <div className={`flex flex-col w-full max-w-[92vw] sm:max-w-md lg:max-w-xl ${isSender ? 'items-end' : 'items-start'}`}>
+        <div
+          className={`w-full px-4 py-3 rounded-2xl break-words overflow-hidden ${
             isSender
               ? 'bg-corp-blue-light text-white rounded-br-none'
               : 'bg-white dark:bg-corp-gray-700 text-corp-gray-800 dark:text-corp-gray-200 rounded-bl-none shadow-md'
           }`}
+          style={{ overflowWrap: 'anywhere' }}
         >
-          <p style={{ whiteSpace: 'pre-wrap' }}>{renderTextWithLinks()}</p>
+          <p className="whitespace-pre-wrap break-words">{renderTextWithLinks()}</p>
         </div>
 
         <div className="mt-1 px-1 text-xs text-corp-gray-700 dark:text-corp-gray-300 flex items-center gap-2">
