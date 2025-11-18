@@ -78,7 +78,7 @@ const RoomPage: React.FC = () => {
     { type: 'like', emoji: '👍', label: 'いいね', borderClass: 'border-yellow-100/80 focus:ring-yellow-400', hoverClass: 'hover:bg-yellow-50 dark:hover:bg-yellow-500/20' },
     { type: 'idea', emoji: '💡', label: 'ひらめき', borderClass: 'border-blue-100/80 focus:ring-blue-400', hoverClass: 'hover:bg-blue-50 dark:hover:bg-blue-500/20' },
     { type: 'question', emoji: '🤔', label: '質問', borderClass: 'border-green-100/80 focus:ring-green-400', hoverClass: 'hover:bg-green-50 dark:hover:bg-green-500/20' },
-    { type: 'confused', emoji: '🦓', label: 'まぎらわしい', borderClass: 'border-purple-100/80 focus:ring-purple-400', hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-500/20' },
+    { type: 'confused', emoji: '🦓', label: 'ゼブラ！', borderClass: 'border-purple-100/80 focus:ring-purple-400', hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-500/20' },
   ];
 
   return (

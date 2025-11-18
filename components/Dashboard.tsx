@@ -15,7 +15,7 @@ const reactionTypes: { [key in ReactionType]: { emoji: string; colorClass: strin
   like: { emoji: '👍', colorClass: 'bg-yellow-500', label: 'いいね' },
   idea: { emoji: '💡', colorClass: 'bg-blue-500', label: 'なるほど' },
   question: { emoji: '🤔', colorClass: 'bg-green-500', label: '疑問' },
-  confused: { emoji: '😕', colorClass: 'bg-purple-500', label: 'うーん' },
+  confused: { emoji: '🦓', colorClass: 'bg-purple-500', label: 'ゼブラ！' },
 };
 
 const ProgressBar: React.FC<{
