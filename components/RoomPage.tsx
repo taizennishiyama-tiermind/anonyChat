@@ -74,15 +74,15 @@ const RoomPage: React.FC = () => {
     }, 1000); // Animation duration
   };
 
-  const reactionButtons: { type: ReactionType; emoji: string; color: string; }[] = [
-    { type: 'like', emoji: '👍', color: 'yellow' },
-    { type: 'idea', emoji: '💡', color: 'blue' },
-    { type: 'question', emoji: '🤔', color: 'green' },
-    { type: 'confused', emoji: '😕', color: 'purple' },
+  const reactionButtons: { type: ReactionType; emoji: string; label: string; borderClass: string; hoverClass: string; }[] = [
+    { type: 'like', emoji: '👍', label: 'いいね', borderClass: 'border-yellow-100/80 focus:ring-yellow-400', hoverClass: 'hover:bg-yellow-50 dark:hover:bg-yellow-500/20' },
+    { type: 'idea', emoji: '💡', label: 'ひらめき', borderClass: 'border-blue-100/80 focus:ring-blue-400', hoverClass: 'hover:bg-blue-50 dark:hover:bg-blue-500/20' },
+    { type: 'question', emoji: '🤔', label: '質問', borderClass: 'border-green-100/80 focus:ring-green-400', hoverClass: 'hover:bg-green-50 dark:hover:bg-green-500/20' },
+    { type: 'confused', emoji: '🦓', label: 'まぎらわしい', borderClass: 'border-purple-100/80 focus:ring-purple-400', hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-500/20' },
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-corp-gray-100 dark:bg-corp-gray-900">
+    <div className="flex flex-col h-screen bg-corp-gray-100 dark:bg-corp-gray-900 overflow-x-hidden">
       <header className="flex items-center justify-between p-4 bg-white dark:bg-corp-gray-800 shadow-md z-10 shrink-0">
         {canNavigateHome ? (
           <Link to="/" className="flex items-center gap-2 text-corp-blue-light hover:text-corp-blue transition-colors">
@@ -106,11 +106,11 @@ const RoomPage: React.FC = () => {
 
       <Dashboard messages={messages} reactions={reactions} />
 
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto space-y-6 w-full">
           {messages.map((msg) => (
-            <MessageItem 
-              key={msg.id} 
+            <MessageItem
+              key={msg.id}
               message={msg}
             />
           ))}
@@ -144,28 +144,34 @@ const RoomPage: React.FC = () => {
               <SendIcon className="w-6 h-6" />
             </button>
           </form>
-          <div className="order-2 sm:order-1 flex w-full justify-between gap-2 sm:w-auto sm:justify-start">
-            {reactionButtons.map(({ type, emoji, color }) => (
-              <button
-                key={type}
-                onClick={() => handleReactionClick(type, emoji)}
-                aria-label={`${type}を送る`}
-                className={`relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-white dark:bg-corp-gray-700 border-2 border-corp-gray-200 dark:border-corp-gray-600 rounded-full hover:bg-gray-100 dark:hover:bg-corp-gray-600 transition-all transform hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${color}-500`}
-              >
-                <span className="text-xl sm:text-2xl">{emoji}</span>
-                {flyingEmojis
-                  .filter(fe => fe.type === type)
-                  .map(fe => (
-                    <span
-                      key={fe.id}
-                      className="absolute bottom-full left-1/2 -translate-x-1/2 text-2xl sm:text-3xl pointer-events-none animate-fly-up"
-                      style={{ userSelect: 'none' }}
-                    >
-                      {fe.emoji}
+          <div className="order-2 sm:order-1 w-full sm:w-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto p-2 bg-white/90 dark:bg-corp-gray-700/80 border border-corp-gray-200 dark:border-corp-gray-600 rounded-2xl shadow-md sm:shadow-none sm:bg-transparent sm:dark:bg-transparent sm:border-none">
+              {reactionButtons.map(({ type, emoji, label, borderClass, hoverClass }) => (
+                <div key={type} className="flex flex-col items-center flex-1 min-w-[64px] sm:min-w-0 sm:w-auto">
+                  <button
+                    onClick={() => handleReactionClick(type, emoji)}
+                    aria-label={`${label}を送る`}
+                    className={`relative w-full max-w-[72px] h-12 sm:w-12 sm:h-12 flex items-center justify-center bg-white/90 dark:bg-corp-gray-700 border ${borderClass} rounded-full ${hoverClass} transition-all transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-corp-gray-800`}
+                  >
+                    <span className="text-xl sm:text-2xl" aria-hidden>
+                      {emoji}
                     </span>
-                ))}
-              </button>
-            ))}
+                    {flyingEmojis
+                      .filter(fe => fe.type === type)
+                      .map(fe => (
+                        <span
+                          key={fe.id}
+                          className="absolute bottom-full left-1/2 -translate-x-1/2 text-2xl sm:text-3xl pointer-events-none animate-fly-up"
+                          style={{ userSelect: 'none' }}
+                        >
+                          {fe.emoji}
+                        </span>
+                    ))}
+                  </button>
+                  <span className="mt-1 text-[11px] font-semibold text-corp-gray-600 dark:text-corp-gray-200 sm:hidden">{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </footer>
