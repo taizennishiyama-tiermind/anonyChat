@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Message, Reaction, ReactionType } from '../types';
 import { CommentIcon, ThumbsUpIcon } from './icons';
 
@@ -15,7 +15,7 @@ const reactionTypes: { [key in ReactionType]: { emoji: string; colorClass: strin
   like: { emoji: '👍', colorClass: 'bg-yellow-500', label: 'いいね' },
   idea: { emoji: '💡', colorClass: 'bg-blue-500', label: 'なるほど' },
   question: { emoji: '🤔', colorClass: 'bg-green-500', label: '疑問' },
-  confused: { emoji: '😕', colorClass: 'bg-purple-500', label: 'うーん' },
+  confused: { emoji: '🦓', colorClass: 'bg-purple-500', label: 'うーん' },
 };
 
 const ProgressBar: React.FC<{
@@ -97,27 +97,50 @@ const ReactionDistribution: React.FC<{ reactions: Reaction[] }> = ({ reactions }
 const Dashboard: React.FC<DashboardProps> = ({ messages, reactions }) => {
   const totalMessages = useMemo(() => messages.filter(m => m.userId !== systemMessageUser).length, [messages]);
   const totalReactions = reactions.length;
+  const [showMetrics, setShowMetrics] = useState(true);
+  const toggleButtonClasses = [
+    'px-3 py-1.5 text-sm font-semibold text-corp-blue-light',
+    'border border-corp-blue-light rounded-lg transition-colors',
+    'focus:outline-none focus:ring-2 focus:ring-corp-blue-light focus:ring-offset-2 focus:ring-offset-white',
+    'hover:bg-corp-blue-light hover:text-white',
+    'dark:text-corp-blue-200 dark:border-corp-blue-200 dark:hover:text-white dark:hover:bg-corp-blue-light',
+    'dark:focus:ring-offset-corp-gray-800',
+  ].join(' ');
 
   return (
     <div className="bg-white dark:bg-corp-gray-800 p-4 border-b border-corp-gray-200 dark:border-corp-gray-700">
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
-          <ProgressBar
-            title="メッセージ目標"
-            icon={<CommentIcon className="w-4 h-4 text-corp-blue-light" />}
-            current={totalMessages}
-            goal={MESSAGE_GOAL}
-            colorClass="bg-corp-blue-light"
-          />
-          <ProgressBar
-            title="リアクション目標"
-            icon={<ThumbsUpIcon className="w-4 h-4 text-yellow-500" />}
-            current={totalReactions}
-            goal={REACTION_GOAL}
-            colorClass="bg-yellow-500"
-          />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowMetrics((prev) => !prev)}
+            className={toggleButtonClasses}
+            aria-expanded={showMetrics}
+          >
+            {showMetrics ? '指標を隠す' : '指標を表示'}
+          </button>
         </div>
-        <ReactionDistribution reactions={reactions} />
+        {showMetrics && (
+          <>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+              <ProgressBar
+                title="メッセージ目標"
+                icon={<CommentIcon className="w-4 h-4 text-corp-blue-light" />}
+                current={totalMessages}
+                goal={MESSAGE_GOAL}
+                colorClass="bg-corp-blue-light"
+              />
+              <ProgressBar
+                title="リアクション目標"
+                icon={<ThumbsUpIcon className="w-4 h-4 text-yellow-500" />}
+                current={totalReactions}
+                goal={REACTION_GOAL}
+                colorClass="bg-yellow-500"
+              />
+            </div>
+            <ReactionDistribution reactions={reactions} />
+          </>
+        )}
       </div>
     </div>
   );
