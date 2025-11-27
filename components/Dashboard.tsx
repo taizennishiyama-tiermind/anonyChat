@@ -97,32 +97,49 @@ const ReactionDistribution: React.FC<{ reactions: Reaction[] }> = ({ reactions }
 const Dashboard: React.FC<DashboardProps> = ({ messages, reactions }) => {
   const totalMessages = useMemo(() => messages.filter(m => m.userId !== systemMessageUser).length, [messages]);
   const totalReactions = reactions.length;
-  const [showMetrics, setShowMetrics] = useState(true);
-  const toggleButtonClasses = [
-    'px-3 py-1.5 text-sm font-semibold text-corp-blue-light',
-    'border border-corp-blue-light rounded-lg transition-colors',
-    'focus:outline-none focus:ring-2 focus:ring-corp-blue-light focus:ring-offset-2 focus:ring-offset-white',
-    'hover:bg-corp-blue-light hover:text-white',
-    'dark:text-corp-blue-200 dark:border-corp-blue-200 dark:hover:text-white dark:hover:bg-corp-blue-light',
-    'dark:focus:ring-offset-corp-gray-800',
-  ].join(' ');
+  const [showMetrics, setShowMetrics] = useState(false); // デフォルトで非表示
 
   return (
-    <div className="bg-white dark:bg-corp-gray-800 p-4 border-b border-corp-gray-200 dark:border-corp-gray-700">
+    <div className="bg-white dark:bg-corp-gray-800 border-b border-corp-gray-200 dark:border-corp-gray-700">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setShowMetrics((prev) => !prev)}
-            className={toggleButtonClasses}
-            aria-expanded={showMetrics}
-          >
-            {showMetrics ? '指標を隠す' : '指標を表示'}
-          </button>
-        </div>
+        {/* コンパクト表示 */}
+        {!showMetrics && (
+          <div className="flex items-center justify-between px-4 py-2">
+            <div className="flex items-center gap-4 text-xs text-corp-gray-700 dark:text-corp-gray-300">
+              <div className="flex items-center gap-1">
+                <CommentIcon className="w-3 h-3 text-corp-blue-light" />
+                <span className="font-semibold">{totalMessages}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <ThumbsUpIcon className="w-3 h-3 text-yellow-500" />
+                <span className="font-semibold">{totalReactions}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMetrics(true)}
+              className="px-2 py-1 text-xs font-semibold text-corp-gray-600 dark:text-corp-gray-400 hover:text-corp-blue-light dark:hover:text-corp-blue-light transition-colors"
+              aria-label="指標を表示"
+            >
+              詳細
+            </button>
+          </div>
+        )}
+
+        {/* 詳細表示 */}
         {showMetrics && (
-          <>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+          <div className="p-4">
+            <div className="flex justify-end mb-2">
+              <button
+                type="button"
+                onClick={() => setShowMetrics(false)}
+                className="px-2 py-1 text-xs font-semibold text-corp-gray-600 dark:text-corp-gray-400 hover:text-corp-blue-light dark:hover:text-corp-blue-light transition-colors"
+                aria-label="指標を隠す"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
               <ProgressBar
                 title="メッセージ目標"
                 icon={<CommentIcon className="w-4 h-4 text-corp-blue-light" />}
@@ -139,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({ messages, reactions }) => {
               />
             </div>
             <ReactionDistribution reactions={reactions} />
-          </>
+          </div>
         )}
       </div>
     </div>

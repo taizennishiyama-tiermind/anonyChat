@@ -1,16 +1,23 @@
-import React, { useState } from 'react';
-import type { Message } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import type { Message, MessageReaction } from '../types';
 
 interface MessageItemProps {
   message: Message;
   onReact?: (messageId: string) => void;
-  reactionCount?: number;
-  hasReacted?: boolean;
+  reactions?: MessageReaction[];
 }
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactionCount = 0, hasReacted = false }) => {
+const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions = [] }) => {
   const { text, userId, timestamp, isSender, is_host, host_name } = message;
-  const [showReaction, setShowReaction] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const reactionCount = reactions.length;
+  const uniqueReactions = reactions.reduce((acc, reaction) => {
+    acc[reaction.user_id] = true;
+    return acc;
+  }, {} as Record<string, boolean>);
+  const hasReacted = Object.keys(uniqueReactions).length > 0;
 
   const time = new Date(timestamp).toLocaleTimeString('ja-JP', {
     hour: '2-digit',
@@ -65,20 +72,32 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactionCou
     );
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    };
+
+    if (showReactionPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showReactionPicker]);
+
   const handleReaction = () => {
     if (onReact && message.id) {
       onReact(message.id);
-      setShowReaction(true);
-      setTimeout(() => setShowReaction(false), 300);
+      setShowReactionPicker(false);
     }
   };
 
   const displayName = is_host && host_name ? host_name : userId;
 
   return (
-    <div className={`flex items-end gap-2 group ${isSender ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex items-end gap-2 group ${isSender ? 'justify-end' : 'justify-start'} mb-1`}>
       <div className={`flex flex-col w-full max-w-[85vw] sm:max-w-md lg:max-w-xl ${isSender ? 'items-end' : 'items-start'}`}>
-        <div className="relative mb-3">
+        <div className="relative">
           <div
             className={`w-full px-4 py-3 rounded-2xl break-words overflow-hidden ${
               isSender
@@ -97,26 +116,48 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactionCou
             <p className="whitespace-pre-wrap break-words">{renderTextWithLinks()}</p>
           </div>
 
-          {onReact && (
-            <button
-              onClick={handleReaction}
-              className={`absolute -bottom-2 ${isSender ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} flex items-center gap-1 px-2 py-1 text-xs bg-white dark:bg-corp-gray-600 border border-corp-gray-300 dark:border-corp-gray-500 rounded-full shadow-sm active:shadow-lg sm:hover:shadow-md transition-all transform active:scale-95 sm:hover:scale-110 ${
-                hasReacted ? 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400' : ''
-              }`}
-              aria-label="いいねを追加"
+          {/* Reaction Picker */}
+          {onReact && showReactionPicker && (
+            <div
+              ref={pickerRef}
+              className={`absolute ${isSender ? 'right-0' : 'left-0'} top-full mt-1 z-10 bg-white dark:bg-corp-gray-700 rounded-full shadow-lg border border-corp-gray-200 dark:border-corp-gray-600 p-1 flex gap-1`}
             >
-              <span className={`text-sm sm:text-base transition-transform ${showReaction ? 'animate-bounce' : ''}`}>👍</span>
-              {reactionCount > 0 && (
-                <span className="font-semibold text-corp-gray-700 dark:text-corp-gray-200 text-xs">{reactionCount}</span>
-              )}
-            </button>
+              <button
+                onClick={handleReaction}
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-corp-gray-100 dark:hover:bg-corp-gray-600 transition-all transform hover:scale-125 active:scale-95"
+                aria-label="いいね"
+              >
+                <span className="text-2xl">👍</span>
+              </button>
+            </div>
           )}
         </div>
 
-        <div className="mt-1 px-1 text-xs text-corp-gray-700 dark:text-corp-gray-300 flex items-center gap-2">
-          <span className="font-semibold">{displayName}</span>
-          <span>-</span>
-          <span>{time}</span>
+        {/* Reactions Display */}
+        <div className="flex items-center gap-2 mt-1">
+          {reactionCount > 0 && (
+            <div className={`flex items-center gap-1 px-2 py-0.5 bg-corp-gray-100 dark:bg-corp-gray-800 rounded-full ${isSender ? 'order-2' : 'order-1'}`}>
+              <span className="text-xs">👍</span>
+              <span className="text-xs font-semibold text-corp-gray-700 dark:text-corp-gray-300">{reactionCount}</span>
+            </div>
+          )}
+
+          <div className={`px-1 text-xs text-corp-gray-700 dark:text-corp-gray-300 flex items-center gap-2 ${isSender ? 'order-1' : 'order-2'}`}>
+            <span className="font-semibold">{displayName}</span>
+            <span>·</span>
+            <span>{time}</span>
+            {onReact && (
+              <>
+                <span>·</span>
+                <button
+                  onClick={() => setShowReactionPicker(!showReactionPicker)}
+                  className="text-corp-gray-600 dark:text-corp-gray-400 hover:text-corp-blue-light dark:hover:text-corp-blue-light font-semibold transition-colors"
+                >
+                  リアクション
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
