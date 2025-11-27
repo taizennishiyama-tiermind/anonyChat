@@ -113,8 +113,7 @@ const RoomPage: React.FC = () => {
               key={msg.id}
               message={msg}
               onReact={addMessageReaction}
-              reactionCount={messageReactions.filter(r => r.message_id === msg.id).length}
-              hasReacted={messageReactions.some(r => r.message_id === msg.id && r.user_id === msg.user_id)}
+              reactions={messageReactions.filter(r => r.message_id === msg.id)}
             />
           ))}
           <div ref={messagesEndRef} />
