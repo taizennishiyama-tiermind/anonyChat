@@ -12,30 +12,8 @@ const getUserId = () => {
   return userId;
 };
 
-// Get host info from URL params and localStorage
-const getHostInfo = (roomId: string) => {
-  const params = new URLSearchParams(window.location.search);
-  const isHostParam = params.get('host') === 'true';
-  const hostNameParam = params.get('name');
-
-  // Check if this user was previously a host for this room
-  const storedHostInfo = localStorage.getItem(`host-info-${roomId}`);
-
-  if (isHostParam && hostNameParam) {
-    // Save host info for this room
-    const hostInfo = { isHost: true, name: hostNameParam };
-    localStorage.setItem(`host-info-${roomId}`, JSON.stringify(hostInfo));
-    return hostInfo;
-  } else if (storedHostInfo) {
-    return JSON.parse(storedHostInfo);
-  }
-
-  return { isHost: false, name: null };
-};
-
 export const useChatRoom = (roomId: string) => {
   const currentUserIdRef = useRef<string>(getUserId());
-  const hostInfoRef = useRef(getHostInfo(roomId));
   const [messages, setMessages] = useState<Message[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [messageReactions, setMessageReactions] = useState<MessageReaction[]>([]);
@@ -175,8 +153,6 @@ export const useChatRoom = (roomId: string) => {
       text,
       room_id: roomId,
       user_id: currentUserIdRef.current,
-      is_host: hostInfoRef.current.isHost,
-      host_name: hostInfoRef.current.name,
     };
     const { error } = await supabase.from('messages').insert([newMessage]);
     if (error) {
@@ -214,7 +190,6 @@ export const useChatRoom = (roomId: string) => {
     reactions,
     messageReactions,
     addMessageReaction,
-    currentUserId: currentUserIdRef.current,
-    hostInfo: hostInfoRef.current,
+    currentUserId: currentUserIdRef.current
   };
 };
