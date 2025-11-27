@@ -42,7 +42,7 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-corp-gray-100 dark:bg-corp-gray-900 p-4">
+    <div className="flex items-center justify-center min-h-screen bg-corp-gray-100 dark:bg-corp-gray-900 p-4" style={{ minHeight: '100dvh' }}>
       <div className="w-full max-w-md mx-auto">
         <div className="bg-white dark:bg-corp-gray-800 shadow-2xl rounded-2xl p-8 transform transition-all hover:scale-105 duration-300">
           <div className="flex flex-col items-center text-center">
