@@ -44,15 +44,15 @@ const HomePage: React.FC = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-corp-gray-100 dark:bg-corp-gray-900 p-4" style={{ minHeight: '100dvh' }}>
       <div className="w-full max-w-md mx-auto">
-        <div className="bg-white dark:bg-corp-gray-800 shadow-2xl rounded-2xl p-8 transform transition-all hover:scale-105 duration-300">
+        <div className="bg-white dark:bg-corp-gray-800 shadow-2xl rounded-3xl p-8 transform transition-all hover:scale-[1.02] duration-300">
           <div className="flex flex-col items-center text-center">
-            <div className="bg-corp-blue-light text-white rounded-full p-4 mb-6">
+            <div className="bg-gradient-to-br from-corp-blue-light to-corp-blue text-white rounded-full p-4 mb-6 shadow-lg">
                 <CommentIcon className="w-10 h-10" />
             </div>
-            <h1 className="text-3xl font-bold text-corp-gray-800 dark:text-white mb-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-corp-blue-light to-corp-blue bg-clip-text text-transparent mb-2">
               匿名ディスカッション
             </h1>
-            <p className="text-corp-gray-700 dark:text-corp-gray-300 mb-8">
+            <p className="text-corp-gray-700 dark:text-corp-gray-300 mb-8 leading-relaxed">
               研修の疑問や意見をリアルタイムで共有しましょう。
             </p>
           </div>
@@ -73,7 +73,7 @@ const HomePage: React.FC = () => {
             </div>
             <button
               type="submit"
-              className="w-full bg-corp-blue-light hover:bg-corp-blue text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:translate-y-[-2px] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
+              className="w-full bg-gradient-to-r from-corp-blue-light to-corp-blue hover:shadow-xl text-white font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light shadow-lg"
             >
               ルームを作成 / 参加
             </button>
@@ -89,7 +89,7 @@ const HomePage: React.FC = () => {
                   <button
                     key={room}
                     onClick={() => handleSelectRecentRoom(room)}
-                    className="w-full text-left bg-corp-gray-100 dark:bg-corp-gray-700 hover:bg-corp-gray-200 dark:hover:bg-corp-gray-600 px-4 py-3 rounded-lg text-corp-gray-800 dark:text-white transition-colors duration-200"
+                    className="w-full text-left bg-corp-gray-100 dark:bg-corp-gray-700 hover:bg-gradient-to-r hover:from-corp-blue-light/10 hover:to-corp-blue/10 hover:border-corp-blue-light border border-transparent px-4 py-3 rounded-xl text-corp-gray-800 dark:text-white transition-all duration-200 transform hover:scale-[1.02] active:scale-95 shadow-sm hover:shadow-md"
                   >
                     {room}
                   </button>
