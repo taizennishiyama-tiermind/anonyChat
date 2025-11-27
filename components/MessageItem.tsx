@@ -1,175 +1,163 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Message, MessageReaction } from '../types';
 
 interface MessageItemProps {
   message: Message;
   onReact?: (messageId: string) => void;
   reactions?: MessageReaction[];
-  currentUserId?: string;
 }
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions = [], currentUserId }) => {
+const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions = [] }) => {
   const { text, userId, timestamp, isSender, is_host, host_name } = message;
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const reactionCount = reactions.length;
-  const hasReacted = useMemo(() =>
-    currentUserId ? reactions.some(r => r.user_id === currentUserId) : false,
-    [reactions, currentUserId]
-  );
+  const uniqueReactions = reactions.reduce((acc, reaction) => {
+    acc[reaction.user_id] = true;
+    return acc;
+  }, {} as Record<string, boolean>);
+  const hasReacted = Object.keys(uniqueReactions).length > 0;
 
   const time = new Date(timestamp).toLocaleTimeString('ja-JP', {
     hour: '2-digit',
     minute: '2-digit',
   });
 
-  // Enhanced text rendering with URLs and mentions
-  const renderTextWithLinksAndMentions = () => {
-    const urlRegex = /((https?:\/\/|www\.)[^\s]+)/gi;
-    const mentionRegex = /@([^\s]+)/g;
+  const urlRegex = /((https?:\/\/|www\.)[^\s]+)/gi;
 
-    const linkClassName = isSender
-      ? 'underline text-white decoration-white/70 underline-offset-2 hover:decoration-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
-      : 'underline text-corp-blue-light hover:text-corp-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-corp-blue-light/60';
+  const linkClassName = isSender
+    ? 'underline text-white decoration-white/70 underline-offset-2 hover:decoration-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
+    : 'underline text-corp-blue-light hover:text-corp-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-corp-blue-light/60';
 
-    const mentionClassName = isSender
-      ? 'font-bold text-yellow-300'
-      : 'font-bold text-corp-blue-light';
-
-    const parts: Array<{ type: 'text' | 'url' | 'mention', content: string, index: number }> = [];
-    const allMatches: Array<{ start: number, end: number, type: 'url' | 'mention', content: string }> = [];
-
-    // Find all URLs
-    let match: RegExpExecArray | null;
-    while ((match = urlRegex.exec(text)) !== null) {
-      allMatches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        type: 'url',
-        content: match[0]
-      });
-    }
-
-    // Find all mentions
-    const mentionMatches = text.matchAll(mentionRegex);
-    for (const match of mentionMatches) {
-      if (match.index !== undefined) {
-        allMatches.push({
-          start: match.index,
-          end: match.index + match[0].length,
-          type: 'mention',
-          content: match[0]
-        });
-      }
-    }
-
-    // Sort by position
-    allMatches.sort((a, b) => a.start - b.start);
-
+  const renderTextWithLinks = () => {
+    const nodes: Array<string | JSX.Element> = [];
     let lastIndex = 0;
-    allMatches.forEach((item, idx) => {
-      // Add text before the match
-      if (item.start > lastIndex) {
-        parts.push({ type: 'text', content: text.slice(lastIndex, item.start), index: parts.length });
+    let match: RegExpExecArray | null;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      const matchIndex = match.index;
+      const matchText = match[0];
+
+      if (matchIndex > lastIndex) {
+        nodes.push(text.slice(lastIndex, matchIndex));
       }
 
-      // Add the match
-      parts.push({ type: item.type, content: item.content, index: parts.length });
-      lastIndex = item.end;
-    });
+      const href = matchText.startsWith('http') ? matchText : `https://${matchText}`;
 
-    // Add remaining text
-    if (lastIndex < text.length) {
-      parts.push({ type: 'text', content: text.slice(lastIndex), index: parts.length });
+      nodes.push(
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkClassName}
+        >
+          {matchText}
+        </a>
+      );
+
+      lastIndex = matchIndex + matchText.length;
     }
 
-    return parts.map((part) => {
-      if (part.type === 'url') {
-        const href = part.content.startsWith('http') ? part.content : `https://${part.content}`;
-        return (
-          <a
-            key={part.index}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={linkClassName}
-          >
-            {part.content}
-          </a>
-        );
-      } else if (part.type === 'mention') {
-        return (
-          <span key={part.index} className={mentionClassName}>
-            {part.content}
-          </span>
-        );
-      } else {
-        return <React.Fragment key={part.index}>{part.content}</React.Fragment>;
-      }
-    });
+    if (lastIndex < text.length) {
+      nodes.push(text.slice(lastIndex));
+    }
+
+    return nodes.map((node, idx) =>
+      typeof node === 'string' ? (
+        <React.Fragment key={`text-${idx}`}>{node}</React.Fragment>
+      ) : (
+        React.cloneElement(node, { key: `link-${idx}` })
+      )
+    );
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    };
+
+    if (showReactionPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showReactionPicker]);
+
   const handleReaction = () => {
-    if (onReact && message.id && !hasReacted) {
+    if (onReact && message.id) {
       onReact(message.id);
-      setIsAnimating(true);
-      setTimeout(() => setIsAnimating(false), 300);
+      setShowReactionPicker(false);
     }
   };
 
   const displayName = is_host && host_name ? host_name : userId;
 
   return (
-    <div className={`flex items-start gap-3 group ${isSender ? 'justify-end' : 'justify-start'} mb-4`}>
+    <div className={`flex items-end gap-2 group ${isSender ? 'justify-end' : 'justify-start'} mb-1`}>
       <div className={`flex flex-col w-full max-w-[85vw] sm:max-w-md lg:max-w-xl ${isSender ? 'items-end' : 'items-start'}`}>
-        {/* Username and timestamp */}
-        <div className="flex items-center gap-2 mb-1 px-1">
-          {is_host && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full shadow-sm">
-              🎤 ホスト
-            </span>
-          )}
-          <span className="text-xs font-semibold text-corp-gray-700 dark:text-corp-gray-300">{displayName}</span>
-          <span className="text-xs text-corp-gray-500 dark:text-corp-gray-400">{time}</span>
-        </div>
-
-        {/* Message bubble */}
-        <div className="relative w-full">
+        <div className="relative">
           <div
-            className={`w-full px-4 py-3 rounded-2xl break-words overflow-hidden transition-all ${
+            className={`w-full px-4 py-3 rounded-2xl break-words overflow-hidden ${
               isSender
-                ? 'bg-corp-blue-light text-white rounded-br-sm shadow-md'
-                : 'bg-white dark:bg-corp-gray-700 text-corp-gray-800 dark:text-corp-gray-200 rounded-bl-sm shadow-md'
+                ? 'bg-corp-blue-light text-white rounded-br-none'
+                : 'bg-white dark:bg-corp-gray-700 text-corp-gray-800 dark:text-corp-gray-200 rounded-bl-none shadow-md'
             }`}
             style={{ overflowWrap: 'anywhere' }}
           >
-            <p className="whitespace-pre-wrap break-words leading-relaxed">
-              {renderTextWithLinksAndMentions()}
-            </p>
+            {is_host && (
+              <div className="mb-2 inline-block">
+                <span className="px-2 py-0.5 text-xs font-bold bg-yellow-400 text-corp-gray-900 rounded-full">
+                  ホスト
+                </span>
+              </div>
+            )}
+            <p className="whitespace-pre-wrap break-words">{renderTextWithLinks()}</p>
           </div>
 
-          {/* Reaction button */}
-          {onReact && (
-            <button
-              onClick={handleReaction}
-              disabled={hasReacted}
-              className={`absolute -bottom-2 ${isSender ? 'left-3' : 'right-3'} flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg border-2 transition-all transform active:scale-95 ${
-                hasReacted
-                  ? 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-400 dark:border-yellow-600'
-                  : 'bg-white dark:bg-corp-gray-600 border-corp-gray-200 dark:border-corp-gray-500 hover:border-yellow-400 hover:shadow-xl hover:scale-105'
-              } ${isAnimating ? 'animate-bounce' : ''}`}
-              aria-label="いいね"
+          {/* Reaction Picker */}
+          {onReact && showReactionPicker && (
+            <div
+              ref={pickerRef}
+              className={`absolute ${isSender ? 'right-0' : 'left-0'} top-full mt-1 z-10 bg-white dark:bg-corp-gray-700 rounded-full shadow-lg border border-corp-gray-200 dark:border-corp-gray-600 p-1 flex gap-1`}
             >
-              <span className={`text-lg transition-transform ${isAnimating ? 'scale-125' : ''}`}>
-                {hasReacted ? '👍' : '👍'}
-              </span>
-              {reactionCount > 0 && (
-                <span className={`text-sm font-bold ${hasReacted ? 'text-yellow-700 dark:text-yellow-300' : 'text-corp-gray-700 dark:text-corp-gray-200'}`}>
-                  {reactionCount}
-                </span>
-              )}
-            </button>
+              <button
+                onClick={handleReaction}
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-corp-gray-100 dark:hover:bg-corp-gray-600 transition-all transform hover:scale-125 active:scale-95"
+                aria-label="いいね"
+              >
+                <span className="text-2xl">👍</span>
+              </button>
+            </div>
           )}
+        </div>
+
+        {/* Reactions Display */}
+        <div className="flex items-center gap-2 mt-1">
+          {reactionCount > 0 && (
+            <div className={`flex items-center gap-1 px-2 py-0.5 bg-corp-gray-100 dark:bg-corp-gray-800 rounded-full ${isSender ? 'order-2' : 'order-1'}`}>
+              <span className="text-xs">👍</span>
+              <span className="text-xs font-semibold text-corp-gray-700 dark:text-corp-gray-300">{reactionCount}</span>
+            </div>
+          )}
+
+          <div className={`px-1 text-xs text-corp-gray-700 dark:text-corp-gray-300 flex items-center gap-2 ${isSender ? 'order-1' : 'order-2'}`}>
+            <span className="font-semibold">{displayName}</span>
+            <span>·</span>
+            <span>{time}</span>
+            {onReact && (
+              <>
+                <span>·</span>
+                <button
+                  onClick={() => setShowReactionPicker(!showReactionPicker)}
+                  className="text-corp-gray-600 dark:text-corp-gray-400 hover:text-corp-blue-light dark:hover:text-corp-blue-light font-semibold transition-colors"
+                >
+                  リアクション
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
