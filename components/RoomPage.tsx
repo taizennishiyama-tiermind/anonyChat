@@ -16,13 +16,13 @@ const RoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const location = useLocation();
   const decodedRoomId = roomId ? decodeURIComponent(roomId) : '不明なルーム';
-  const { messages, sendMessage, addReaction, reactions } = useChatRoom(decodedRoomId);
+  const { messages, sendMessage, addReaction, reactions, messageReactions, addMessageReaction } = useChatRoom(decodedRoomId);
   const [newMessage, setNewMessage] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [flyingEmojis, setFlyingEmojis] = useState<FlyingEmoji[]>([]);
   const [canNavigateHome, setCanNavigateHome] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   const [isComposing, setIsComposing] = useState(false);
 
   const scrollToBottom = () => {
@@ -78,12 +78,12 @@ const RoomPage: React.FC = () => {
     { type: 'like', emoji: '👍', label: 'いいね', borderClass: 'border-yellow-100/80 focus:ring-yellow-400', hoverClass: 'hover:bg-yellow-50 dark:hover:bg-yellow-500/20' },
     { type: 'idea', emoji: '💡', label: 'ひらめき', borderClass: 'border-blue-100/80 focus:ring-blue-400', hoverClass: 'hover:bg-blue-50 dark:hover:bg-blue-500/20' },
     { type: 'question', emoji: '🤔', label: '質問', borderClass: 'border-green-100/80 focus:ring-green-400', hoverClass: 'hover:bg-green-50 dark:hover:bg-green-500/20' },
-    { type: 'confused', emoji: '🦓', label: 'ゼブラ！', borderClass: 'border-purple-100/80 focus:ring-purple-400', hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-500/20' },
+    { type: 'confused', emoji: '🍊', label: 'みかん！', borderClass: 'border-purple-100/80 focus:ring-purple-400', hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-500/20' },
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-corp-gray-100 dark:bg-corp-gray-900 overflow-x-hidden">
-      <header className="flex items-center justify-between p-4 bg-white dark:bg-corp-gray-800 shadow-md z-10 shrink-0">
+    <div className="flex flex-col h-screen bg-corp-gray-100 dark:bg-corp-gray-900 overflow-x-hidden" style={{ height: '100dvh' }}>
+      <header className="flex items-center justify-between p-3 sm:p-4 bg-white dark:bg-corp-gray-800 shadow-md z-10 shrink-0">
         {canNavigateHome ? (
           <Link to="/" className="flex items-center gap-2 text-corp-blue-light hover:text-corp-blue transition-colors">
               <BackIcon className="w-6 h-6" />
@@ -106,20 +106,23 @@ const RoomPage: React.FC = () => {
 
       <Dashboard messages={messages} reactions={reactions} />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
-        <div className="max-w-4xl mx-auto space-y-6 w-full">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 w-full">
           {messages.map((msg) => (
             <MessageItem
               key={msg.id}
               message={msg}
+              onReact={addMessageReaction}
+              reactionCount={messageReactions.filter(r => r.message_id === msg.id).length}
+              hasReacted={messageReactions.some(r => r.message_id === msg.id && r.user_id === msg.user_id)}
             />
           ))}
           <div ref={messagesEndRef} />
         </div>
       </main>
 
-      <footer className="relative p-4 bg-white dark:bg-corp-gray-800 border-t border-corp-gray-200 dark:border-corp-gray-700 shrink-0">
-        <div className="max-w-4xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+      <footer className="relative p-3 sm:p-4 bg-white dark:bg-corp-gray-800 border-t border-corp-gray-200 dark:border-corp-gray-700 shrink-0">
+        <div className="max-w-4xl mx-auto flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-end sm:gap-4">
           <form onSubmit={handleSendMessage} className="order-1 sm:order-2 flex-1 flex items-center gap-2 sm:gap-4">
             <textarea
               value={newMessage}
@@ -134,14 +137,15 @@ const RoomPage: React.FC = () => {
               onCompositionEnd={() => setIsComposing(false)}
               placeholder="匿名でメッセージを送信..."
               rows={1}
-              className="flex-1 w-full min-h-[3rem] p-3 bg-corp-gray-100 dark:bg-corp-gray-700 border-2 border-transparent focus:border-corp-blue-light focus:ring-0 rounded-lg resize-none transition"
+              className="flex-1 w-full min-h-[2.5rem] sm:min-h-[3rem] p-2 sm:p-3 text-sm sm:text-base bg-corp-gray-100 dark:bg-corp-gray-700 border-2 border-transparent focus:border-corp-blue-light focus:ring-0 rounded-lg resize-none transition"
+              style={{ maxHeight: '120px' }}
             />
             <button
               type="submit"
-              className="p-3 bg-corp-blue-light text-white rounded-full hover:bg-corp-blue disabled:bg-gray-400 transition-colors transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
+              className="p-2 sm:p-3 bg-corp-blue-light text-white rounded-full hover:bg-corp-blue disabled:bg-gray-400 transition-colors transform active:scale-95 sm:hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
               disabled={!newMessage.trim()}
             >
-              <SendIcon className="w-6 h-6" />
+              <SendIcon className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </form>
           <div className="order-2 sm:order-1 w-full sm:w-auto">

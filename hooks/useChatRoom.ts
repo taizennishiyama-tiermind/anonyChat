@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabase';
-import type { Message, Reaction, ReactionType } from '../types';
+import type { Message, Reaction, ReactionType, MessageReaction } from '../types';
 
 // Generate and store a persistent user ID
 const getUserId = () => {
@@ -16,6 +16,7 @@ export const useChatRoom = (roomId: string) => {
   const currentUserIdRef = useRef<string>(getUserId());
   const [messages, setMessages] = useState<Message[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [messageReactions, setMessageReactions] = useState<MessageReaction[]>([]);
 
   useEffect(() => {
     // Fetch initial data
@@ -37,34 +38,113 @@ export const useChatRoom = (roomId: string) => {
         .select('*')
         .eq('room_id', roomId)
         .order('timestamp', { ascending: true });
-      
+
       if (reactionsError) {
         console.error('Error fetching reactions:', reactionsError);
       } else {
         setReactions(reactionsData);
       }
+
+      const { data: messageReactionsData, error: messageReactionsError } = await supabase
+        .from('message_reactions')
+        .select('*')
+        .eq('room_id', roomId)
+        .order('timestamp', { ascending: true });
+
+      if (messageReactionsError) {
+        console.error('Error fetching message reactions:', messageReactionsError);
+      } else {
+        setMessageReactions(messageReactionsData || []);
+      }
     };
 
     fetchInitialData();
 
-    // Set up subscriptions
-    const messageSubscription = supabase.channel(`messages-${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, (payload) => {
+    // Set up subscriptions with improved configuration for mobile
+    const messageChannel = supabase.channel(`messages-${roomId}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: '' },
+      },
+    })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `room_id=eq.${roomId}`
+      }, (payload) => {
         const newMessage = { ...payload.new, isSender: payload.new.user_id === currentUserIdRef.current } as Message;
-        setMessages(prevMessages => [...prevMessages, newMessage]);
+        setMessages(prevMessages => {
+          // Prevent duplicates
+          if (prevMessages.some(m => m.id === newMessage.id)) {
+            return prevMessages;
+          }
+          return [...prevMessages, newMessage];
+        });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Messages channel subscribed');
+        }
+      });
 
-    const reactionSubscription = supabase.channel(`reactions-${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reactions', filter: `room_id=eq.${roomId}` }, (payload) => {
-        setReactions(prevReactions => [...prevReactions, payload.new as Reaction]);
+    const reactionChannel = supabase.channel(`reactions-${roomId}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: '' },
+      },
+    })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'reactions',
+        filter: `room_id=eq.${roomId}`
+      }, (payload) => {
+        setReactions(prevReactions => {
+          const newReaction = payload.new as Reaction;
+          if (prevReactions.some(r => r.id === newReaction.id)) {
+            return prevReactions;
+          }
+          return [...prevReactions, newReaction];
+        });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Reactions channel subscribed');
+        }
+      });
+
+    const messageReactionChannel = supabase.channel(`message-reactions-${roomId}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: '' },
+      },
+    })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'message_reactions',
+        filter: `room_id=eq.${roomId}`
+      }, (payload) => {
+        setMessageReactions(prevReactions => {
+          const newReaction = payload.new as MessageReaction;
+          if (prevReactions.some(r => r.id === newReaction.id)) {
+            return prevReactions;
+          }
+          return [...prevReactions, newReaction];
+        });
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Message reactions channel subscribed');
+        }
+      });
 
     // Cleanup subscriptions
     return () => {
-      supabase.removeChannel(messageSubscription);
-      supabase.removeChannel(reactionSubscription);
+      supabase.removeChannel(messageChannel);
+      supabase.removeChannel(reactionChannel);
+      supabase.removeChannel(messageReactionChannel);
     };
   }, [roomId]);
 
@@ -91,5 +171,25 @@ export const useChatRoom = (roomId: string) => {
     }
   }, [roomId]);
 
-  return { messages, sendMessage, addReaction, reactions, currentUserId: currentUserIdRef.current };
+  const addMessageReaction = useCallback(async (messageId: string) => {
+    const newReaction = {
+      message_id: messageId,
+      user_id: currentUserIdRef.current,
+      room_id: roomId,
+    };
+    const { error } = await supabase.from('message_reactions').insert([newReaction]);
+    if (error) {
+      console.error('Error adding message reaction:', error);
+    }
+  }, [roomId]);
+
+  return {
+    messages,
+    sendMessage,
+    addReaction,
+    reactions,
+    messageReactions,
+    addMessageReaction,
+    currentUserId: currentUserIdRef.current
+  };
 };
