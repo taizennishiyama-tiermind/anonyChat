@@ -7,6 +7,7 @@ export interface Message {
   room_id: string;
   is_host?: boolean;
   host_name?: string;
+  mentions?: string[];
 }
 
 export type ReactionType = 'like' | 'idea' | 'question' | 'confused';
@@ -24,4 +25,5 @@ export interface MessageReaction {
   user_id: string;
   room_id: string;
   timestamp: string;
+  type: ReactionType;
 }
