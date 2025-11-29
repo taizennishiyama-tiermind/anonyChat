@@ -30,7 +30,12 @@ export const useChatRoom = (roomId: string) => {
       if (messagesError) {
         console.error('Error fetching messages:', messagesError);
       } else {
-        setMessages(messagesData.map(m => ({ ...m, isSender: m.user_id === currentUserIdRef.current })));
+        setMessages(messagesData.map(m => ({
+          ...m,
+          isSender: m.user_id === currentUserIdRef.current,
+          userId: m.user_id,
+          mentions: m.mentions || [],
+        })));
       }
 
       const { data: reactionsData, error: reactionsError } = await supabase
@@ -54,7 +59,10 @@ export const useChatRoom = (roomId: string) => {
       if (messageReactionsError) {
         console.error('Error fetching message reactions:', messageReactionsError);
       } else {
-        setMessageReactions(messageReactionsData || []);
+        setMessageReactions((messageReactionsData || []).map(r => ({
+          ...r,
+          type: (r as MessageReaction).type || 'like',
+        })));
       }
     };
 
@@ -127,7 +135,7 @@ export const useChatRoom = (roomId: string) => {
         filter: `room_id=eq.${roomId}`
       }, (payload) => {
         setMessageReactions(prevReactions => {
-          const newReaction = payload.new as MessageReaction;
+          const newReaction = { ...payload.new, type: (payload.new as MessageReaction).type || 'like' } as MessageReaction;
           if (prevReactions.some(r => r.id === newReaction.id)) {
             return prevReactions;
           }
@@ -148,11 +156,18 @@ export const useChatRoom = (roomId: string) => {
     };
   }, [roomId]);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (
+    text: string,
+    options?: { mentions?: string[]; isHost?: boolean; hostName?: string }
+  ) => {
+    const { mentions = [], isHost = false, hostName } = options || {};
     const newMessage = {
       text,
       room_id: roomId,
       user_id: currentUserIdRef.current,
+      mentions,
+      is_host: isHost,
+      host_name: isHost ? hostName : null,
     };
     const { error } = await supabase.from('messages').insert([newMessage]);
     if (error) {
@@ -171,11 +186,12 @@ export const useChatRoom = (roomId: string) => {
     }
   }, [roomId]);
 
-  const addMessageReaction = useCallback(async (messageId: string) => {
+  const addMessageReaction = useCallback(async (messageId: string, type: ReactionType) => {
     const newReaction = {
       message_id: messageId,
       user_id: currentUserIdRef.current,
       room_id: roomId,
+      type,
     };
     const { error } = await supabase.from('message_reactions').insert([newReaction]);
     if (error) {

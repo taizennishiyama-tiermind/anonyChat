@@ -1,62 +1,81 @@
 import React, { useState, useRef, useEffect } from 'react';
-import type { Message, MessageReaction } from '../types';
+import type { Message, MessageReaction, ReactionType } from '../types';
 
 interface MessageItemProps {
   message: Message;
-  onReact?: (messageId: string) => void;
+  onReact?: (messageId: string, type: ReactionType) => void;
   reactions?: MessageReaction[];
+  currentUserId: string;
 }
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions = [] }) => {
-  const { text, userId, timestamp, isSender, is_host, host_name } = message;
+const reactionPalette: Record<ReactionType, { emoji: string; label: string }> = {
+  like: { emoji: '👍', label: 'いいね' },
+  idea: { emoji: '💡', label: 'ひらめき' },
+  question: { emoji: '🤔', label: '質問' },
+  confused: { emoji: '🍊', label: 'みかん！' },
+};
+
+const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions = [], currentUserId }) => {
+  const { text, user_id, timestamp, isSender, is_host, host_name, mentions = [] } = message;
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  const reactionCount = reactions.length;
-  const uniqueReactions = reactions.reduce((acc, reaction) => {
-    acc[reaction.user_id] = true;
+  const reactionCounts = reactions.reduce<Record<ReactionType, number>>((acc, reaction) => {
+    const type = reaction.type || 'like';
+    acc[type] = (acc[type] || 0) + 1;
     return acc;
-  }, {} as Record<string, boolean>);
-  const hasReacted = Object.keys(uniqueReactions).length > 0;
+  }, { like: 0, idea: 0, question: 0, confused: 0 });
+  const hasReacted = reactions.some(r => r.user_id === currentUserId);
 
   const time = new Date(timestamp).toLocaleTimeString('ja-JP', {
     hour: '2-digit',
     minute: '2-digit',
   });
 
-  const urlRegex = /((https?:\/\/|www\.)[^\s]+)/gi;
+  const urlOrMentionRegex = /((https?:\/\/|www\.)[^\s]+)|(@[^\s@]+)/gi;
 
   const linkClassName = isSender
     ? 'underline text-white decoration-white/70 underline-offset-2 hover:decoration-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
     : 'underline text-corp-blue-light hover:text-corp-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-corp-blue-light/60';
 
-  const renderTextWithLinks = () => {
+  const renderRichText = () => {
     const nodes: Array<string | JSX.Element> = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
-    while ((match = urlRegex.exec(text)) !== null) {
+    while ((match = urlOrMentionRegex.exec(text)) !== null) {
       const matchIndex = match.index;
-      const matchText = match[0];
+      const fullMatch = match[0];
 
       if (matchIndex > lastIndex) {
         nodes.push(text.slice(lastIndex, matchIndex));
       }
 
-      const href = matchText.startsWith('http') ? matchText : `https://${matchText}`;
+      if (fullMatch.startsWith('@')) {
+        nodes.push(
+          <span
+            key={`mention-${matchIndex}`}
+            className={`font-semibold ${isSender ? 'text-white' : 'text-corp-blue-light'} bg-corp-blue-light/10 px-1.5 py-0.5 rounded-full`}
+          >
+            {fullMatch}
+          </span>
+        );
+      } else {
+        const href = fullMatch.startsWith('http') ? fullMatch : `https://${fullMatch}`;
+        nodes.push(
+          <a
+            key={`link-${matchIndex}`}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClassName}
+          >
+            {fullMatch}
+          </a>
+        );
+      }
 
-      nodes.push(
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={linkClassName}
-        >
-          {matchText}
-        </a>
-      );
-
-      lastIndex = matchIndex + matchText.length;
+      lastIndex = matchIndex + fullMatch.length;
     }
 
     if (lastIndex < text.length) {
@@ -85,14 +104,15 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions =
     }
   }, [showReactionPicker]);
 
-  const handleReaction = () => {
+  const handleReaction = (type: ReactionType) => {
     if (onReact && message.id) {
-      onReact(message.id);
+      onReact(message.id, type);
       setShowReactionPicker(false);
     }
   };
 
-  const displayName = is_host && host_name ? host_name : userId;
+  const displayName = is_host && host_name ? host_name : user_id;
+  const isMentioned = mentions.includes(currentUserId);
 
   return (
     <div className={`flex items-end gap-2 group ${isSender ? 'justify-end' : 'justify-start'} mb-1`}>
@@ -106,14 +126,18 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions =
             }`}
             style={{ overflowWrap: 'anywhere' }}
           >
-            {is_host && (
-              <div className="mb-2 inline-block">
+            <div className="flex items-center gap-2 mb-2">
+              {is_host && (
                 <span className="px-2 py-0.5 text-xs font-bold bg-yellow-400 text-corp-gray-900 rounded-full">
                   ホスト
                 </span>
-              </div>
-            )}
-            <p className="whitespace-pre-wrap break-words">{renderTextWithLinks()}</p>
+              )}
+              <span className="text-xs font-semibold text-corp-gray-700 dark:text-corp-gray-200">{displayName}</span>
+              {isMentioned && (
+                <span className="px-2 py-0.5 text-[11px] font-bold bg-corp-blue-light text-white rounded-full">あなた宛</span>
+              )}
+            </div>
+            <p className="whitespace-pre-wrap break-words leading-relaxed">{renderRichText()}</p>
           </div>
 
           {/* Reaction Picker */}
@@ -122,28 +146,35 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, onReact, reactions =
               ref={pickerRef}
               className={`absolute ${isSender ? 'right-0' : 'left-0'} top-full mt-1 z-10 bg-white dark:bg-corp-gray-700 rounded-full shadow-lg border border-corp-gray-200 dark:border-corp-gray-600 p-1 flex gap-1`}
             >
-              <button
-                onClick={handleReaction}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-corp-gray-100 dark:hover:bg-corp-gray-600 transition-all transform hover:scale-125 active:scale-95"
-                aria-label="いいね"
-              >
-                <span className="text-2xl">👍</span>
-              </button>
+              {(Object.keys(reactionPalette) as ReactionType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => handleReaction(type)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-corp-gray-100 dark:hover:bg-corp-gray-600 transition-all transform hover:scale-110 active:scale-95"
+                  aria-label={`${reactionPalette[type].label}を送る`}
+                >
+                  <span className="text-2xl">{reactionPalette[type].emoji}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
 
         {/* Reactions Display */}
         <div className="flex items-center gap-2 mt-1">
-          {reactionCount > 0 && (
-            <div className={`flex items-center gap-1 px-2 py-0.5 bg-corp-gray-100 dark:bg-corp-gray-800 rounded-full ${isSender ? 'order-2' : 'order-1'}`}>
-              <span className="text-xs">👍</span>
-              <span className="text-xs font-semibold text-corp-gray-700 dark:text-corp-gray-300">{reactionCount}</span>
-            </div>
-          )}
+          {(Object.keys(reactionPalette) as ReactionType[])
+            .filter(type => (reactionCounts[type] || 0) > 0)
+            .map(type => (
+              <div
+                key={type}
+                className={`flex items-center gap-1 px-2 py-0.5 bg-corp-gray-100 dark:bg-corp-gray-800 rounded-full ${isSender ? 'order-2' : 'order-1'}`}
+              >
+                <span className="text-xs">{reactionPalette[type].emoji}</span>
+                <span className="text-xs font-semibold text-corp-gray-700 dark:text-corp-gray-300">{reactionCounts[type]}</span>
+              </div>
+            ))}
 
           <div className={`px-1 text-xs text-corp-gray-700 dark:text-corp-gray-300 flex items-center gap-2 ${isSender ? 'order-1' : 'order-2'}`}>
-            <span className="font-semibold">{displayName}</span>
             <span>·</span>
             <span>{time}</span>
             {onReact && (
