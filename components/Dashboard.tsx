@@ -95,7 +95,10 @@ const ReactionDistribution: React.FC<{ reactions: Reaction[] }> = ({ reactions }
 
 
 const Dashboard: React.FC<DashboardProps> = ({ messages, reactions }) => {
-  const totalMessages = useMemo(() => messages.filter(m => m.userId !== systemMessageUser).length, [messages]);
+  const totalMessages = useMemo(
+    () => messages.filter(m => (m.user_id ?? m.userId) !== systemMessageUser).length,
+    [messages]
+  );
   const totalReactions = reactions.length;
   const [showMetrics, setShowMetrics] = useState(false); // デフォルトで非表示
 

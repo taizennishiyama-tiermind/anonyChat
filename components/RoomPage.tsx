@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { useChatRoom } from '../hooks/useChatRoom';
 import MessageItem from './MessageItem';
@@ -15,15 +15,34 @@ interface FlyingEmoji {
 const RoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
   const decodedRoomId = roomId ? decodeURIComponent(roomId) : '不明なルーム';
-  const { messages, sendMessage, addReaction, reactions, messageReactions, addMessageReaction } = useChatRoom(decodedRoomId);
+  const { messages, sendMessage, addReaction, reactions, messageReactions, addMessageReaction, currentUserId } = useChatRoom(decodedRoomId);
   const [newMessage, setNewMessage] = useState('');
   const [isCopied, setIsCopied] = useState(false);
+  const [isHostLinkCopied, setIsHostLinkCopied] = useState(false);
   const [flyingEmojis, setFlyingEmojis] = useState<FlyingEmoji[]>([]);
   const [canNavigateHome, setCanNavigateHome] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [isComposing, setIsComposing] = useState(false);
+  const [hostName, setHostName] = useState(() => localStorage.getItem('chat-host-name') || '講演者');
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isHostMode = searchParams.get('host') === '1';
+
+  useEffect(() => {
+    const queryHostName = searchParams.get('hostName');
+    if (queryHostName) {
+      setHostName(queryHostName);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    localStorage.setItem('chat-host-name', hostName);
+  }, [hostName]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,15 +72,44 @@ const RoomPage: React.FC = () => {
   const handleSendMessage = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (newMessage.trim() && !isComposing) {
-      sendMessage(newMessage.trim());
+      const mentionNames = Array.from(new Set((newMessage.match(/@([^\s@]+)/g) || []).map(m => m.replace('@', ''))));
+      const participantLookup = participants.reduce<Record<string, string>>((acc, p) => {
+        acc[p.display] = p.id;
+        return acc;
+      }, {});
+      const mentionIds = mentionNames.map(name => participantLookup[name]).filter(Boolean);
+      sendMessage(newMessage.trim(), { mentions: mentionIds, isHost: isHostMode, hostName });
       setNewMessage('');
+      setMentionQuery('');
+      setMentionStart(null);
     }
-  }, [newMessage, isComposing, sendMessage]);
+  }, [newMessage, isComposing, sendMessage, participants, isHostMode, hostName]);
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
+    if (!attendeeShareLink) return;
+    navigator.clipboard.writeText(attendeeShareLink).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
+
+  const attendeeShareLink = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/room/${encodeURIComponent(decodedRoomId)}`;
+  }, [decodedRoomId]);
+
+  const hostShareLink = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const base = `${window.location.origin}/room/${encodeURIComponent(decodedRoomId)}`;
+    const hostParam = new URLSearchParams({ host: '1', hostName });
+    return `${base}?${hostParam.toString()}`;
+  }, [decodedRoomId, hostName]);
+
+  const handleHostShare = () => {
+    if (!hostShareLink) return;
+    navigator.clipboard.writeText(hostShareLink).then(() => {
+      setIsHostLinkCopied(true);
+      setTimeout(() => setIsHostLinkCopied(false), 2000);
     });
   };
 
@@ -81,6 +129,54 @@ const RoomPage: React.FC = () => {
     { type: 'confused', emoji: '🍊', label: 'みかん！', borderClass: 'border-purple-100/80 focus:ring-purple-400', hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-500/20' },
   ];
 
+  const participants = useMemo(() => {
+    const map = new Map<string, { id: string; display: string; isHost?: boolean }>();
+    messages.forEach(m => {
+      if (!m.user_id) return;
+      const display = m.is_host && m.host_name ? m.host_name : m.user_id;
+      map.set(m.user_id, { id: m.user_id, display, isHost: m.is_host });
+    });
+    return Array.from(map.values());
+  }, [messages]);
+
+  const mentionCandidates = useMemo(() => {
+    if (!mentionQuery) return participants;
+    const lower = mentionQuery.toLowerCase();
+    return participants.filter(p => p.display.toLowerCase().includes(lower));
+  }, [mentionQuery, participants]);
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart || value.length;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const mentionMatch = /@([^\s@]*)$/.exec(textBeforeCursor);
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1]);
+      setMentionStart(cursorPos - mentionMatch[1].length - 1);
+    } else {
+      setMentionQuery('');
+      setMentionStart(null);
+    }
+    setNewMessage(value);
+  };
+
+  const insertMention = (display: string) => {
+    if (mentionStart === null || !textareaRef.current) return;
+    const before = newMessage.slice(0, mentionStart);
+    const cursorPos = textareaRef.current.selectionStart || newMessage.length;
+    const after = newMessage.slice(cursorPos);
+    const insertion = `@${display} `;
+    const nextValue = `${before}${insertion}${after}`;
+    setNewMessage(nextValue);
+    setMentionQuery('');
+    setMentionStart(null);
+    requestAnimationFrame(() => {
+      const nextCursor = before.length + insertion.length;
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+      textareaRef.current?.focus();
+    });
+  };
+
   return (
     <div className="flex flex-col h-screen bg-corp-gray-100 dark:bg-corp-gray-900 overflow-x-hidden" style={{ height: '100dvh' }}>
       <header className="flex items-center justify-between p-3 sm:p-4 bg-white dark:bg-corp-gray-800 shadow-md z-10 shrink-0">
@@ -95,14 +191,44 @@ const RoomPage: React.FC = () => {
         <h1 className="text-xl font-bold text-corp-gray-800 dark:text-white truncate" title={decodedRoomId}>
           <span className="text-corp-gray-700 dark:text-corp-gray-300">ルーム:</span> {decodedRoomId}
         </h1>
-        <button
-          onClick={handleShare}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-corp-blue-light text-white rounded-lg hover:bg-corp-blue transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
-        >
-          {isCopied ? <CheckIcon className="w-5 h-5" /> : <ShareIcon className="w-5 h-5" />}
-          <span className="hidden md:inline">{isCopied ? 'コピーしました！' : 'リンクを共有'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-white dark:bg-corp-gray-700 border border-corp-gray-200 dark:border-corp-gray-600 text-corp-gray-800 dark:text-white rounded-lg hover:bg-corp-gray-100 dark:hover:bg-corp-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
+          >
+            {isCopied ? <CheckIcon className="w-5 h-5" /> : <ShareIcon className="w-5 h-5" />}
+            <span className="hidden md:inline">{isCopied ? '参加リンクをコピー済み' : '参加リンクを共有'}</span>
+          </button>
+          <button
+            onClick={handleHostShare}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-corp-blue-light text-white rounded-lg hover:bg-corp-blue transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
+          >
+            {isHostLinkCopied ? <CheckIcon className="w-5 h-5" /> : <ShareIcon className="w-5 h-5" />}
+            <span className="hidden md:inline">{isHostLinkCopied ? 'ホストリンクをコピー済み' : 'ホスト用リンク'}</span>
+          </button>
+        </div>
       </header>
+
+      {isHostMode && (
+        <div className="bg-gradient-to-r from-yellow-50 via-white to-blue-50 dark:from-corp-gray-800 dark:via-corp-gray-800 dark:to-corp-gray-700 border-b border-corp-gray-200 dark:border-corp-gray-700">
+          <div className="max-w-4xl mx-auto px-4 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm text-corp-gray-700 dark:text-corp-gray-200">
+              <span className="px-2 py-0.5 text-xs font-bold bg-yellow-400 text-corp-gray-900 rounded-full">ホストモード</span>
+              <span>あなたの名前を参加者に表示します。</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                value={hostName}
+                onChange={(e) => setHostName(e.target.value)}
+                className="px-3 py-2 text-sm rounded-lg border border-corp-gray-200 dark:border-corp-gray-600 bg-white dark:bg-corp-gray-800 text-corp-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-corp-blue-light"
+                placeholder="ホスト名"
+                aria-label="ホスト名"
+              />
+              <span className="text-xs text-corp-gray-500 dark:text-corp-gray-300">例: 司会 / 講演者 / 事務局</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Dashboard messages={messages} reactions={reactions} />
 
@@ -114,6 +240,7 @@ const RoomPage: React.FC = () => {
               message={msg}
               onReact={addMessageReaction}
               reactions={messageReactions.filter(r => r.message_id === msg.id)}
+              currentUserId={currentUserId}
             />
           ))}
           <div ref={messagesEndRef} />
@@ -122,23 +249,46 @@ const RoomPage: React.FC = () => {
 
       <footer className="relative p-3 sm:p-4 bg-white dark:bg-corp-gray-800 border-t border-corp-gray-200 dark:border-corp-gray-700 shrink-0">
         <div className="max-w-4xl mx-auto flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-end sm:gap-4">
-          <form onSubmit={handleSendMessage} className="order-1 sm:order-2 flex-1 flex items-center gap-2 sm:gap-4">
-            <textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-                  e.preventDefault();
-                  handleSendMessage(e);
-                }
-              }}
-              onCompositionStart={() => setIsComposing(true)}
-              onCompositionEnd={() => setIsComposing(false)}
-              placeholder="匿名でメッセージを送信..."
-              rows={1}
-              className="flex-1 w-full min-h-[2.5rem] sm:min-h-[3rem] p-2 sm:p-3 text-sm sm:text-base bg-corp-gray-100 dark:bg-corp-gray-700 border-2 border-transparent focus:border-corp-blue-light focus:ring-0 rounded-lg resize-none transition"
-              style={{ maxHeight: '120px' }}
-            />
+          <form onSubmit={handleSendMessage} className="order-1 sm:order-2 flex-1 flex items-center gap-2 sm:gap-4 relative">
+            <div className="relative flex-1">
+              <textarea
+                ref={textareaRef}
+                value={newMessage}
+                onChange={handleTextareaChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                placeholder={isHostMode ? `${hostName}として投稿...` : '匿名でメッセージを送信...'}
+                rows={1}
+                className="flex-1 w-full min-h-[2.5rem] sm:min-h-[3rem] p-2 sm:p-3 text-sm sm:text-base bg-corp-gray-100 dark:bg-corp-gray-700 border-2 border-transparent focus:border-corp-blue-light focus:ring-0 rounded-lg resize-none transition"
+                style={{ maxHeight: '120px' }}
+              />
+              {mentionStart !== null && mentionCandidates.length > 0 && (
+                <div className="absolute left-0 right-0 -bottom-2 translate-y-full mt-2 bg-white dark:bg-corp-gray-800 border border-corp-gray-200 dark:border-corp-gray-600 rounded-xl shadow-xl z-20">
+                  <div className="p-2 text-xs text-corp-gray-500 dark:text-corp-gray-300">メンション先を選択</div>
+                  <div className="max-h-48 overflow-y-auto divide-y divide-corp-gray-100 dark:divide-corp-gray-700">
+                    {mentionCandidates.map(candidate => (
+                      <button
+                        type="button"
+                        key={candidate.id}
+                        onClick={() => insertMention(candidate.display)}
+                        className="w-full flex items-center justify-between px-3 py-2 text-left text-sm hover:bg-corp-gray-100 dark:hover:bg-corp-gray-700 transition-colors"
+                      >
+                        <span className="font-semibold text-corp-gray-800 dark:text-white">@{candidate.display}</span>
+                        {candidate.isHost && (
+                          <span className="ml-2 px-2 py-0.5 text-[11px] font-bold bg-yellow-400 text-corp-gray-900 rounded-full">ホスト</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               type="submit"
               className="p-2 sm:p-3 bg-corp-blue-light text-white rounded-full hover:bg-corp-blue disabled:bg-gray-400 transition-colors transform active:scale-95 sm:hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-corp-blue-light"
