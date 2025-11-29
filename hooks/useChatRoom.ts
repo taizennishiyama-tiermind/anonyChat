@@ -1,13 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../supabase';
+import { supabase, isSupabaseConfigured } from '../supabase';
 import type { Message, Reaction, ReactionType, MessageReaction } from '../types';
 
-// Generate and store a persistent user ID
+const safeLocalStorage = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch (error) {
+    console.warn('localStorage is not available in this environment.', error);
+    return null;
+  }
+};
+
 const getUserId = () => {
-  let userId = localStorage.getItem('chat-user-id');
+  const storage = safeLocalStorage();
+  if (!storage) return `匿名の参加者#${Math.random().toString(16).substr(2, 4).toUpperCase()}`;
+  let userId = storage.getItem('chat-user-id');
   if (!userId) {
     userId = `匿名の参加者#${Math.random().toString(16).substr(2, 4).toUpperCase()}`;
-    localStorage.setItem('chat-user-id', userId);
+    storage.setItem('chat-user-id', userId);
   }
   return userId;
 };
@@ -19,7 +30,8 @@ export const useChatRoom = (roomId: string) => {
   const [messageReactions, setMessageReactions] = useState<MessageReaction[]>([]);
 
   useEffect(() => {
-    // Fetch initial data
+    let isMounted = true;
+
     const fetchInitialData = async () => {
       const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
@@ -29,8 +41,13 @@ export const useChatRoom = (roomId: string) => {
 
       if (messagesError) {
         console.error('Error fetching messages:', messagesError);
-      } else {
-        setMessages(messagesData.map(m => ({ ...m, isSender: m.user_id === currentUserIdRef.current })));
+      } else if (isMounted && messagesData) {
+        setMessages(messagesData.map(m => ({
+          ...m,
+          isSender: m.user_id === currentUserIdRef.current,
+          userId: m.user_id,
+          mentions: m.mentions || [],
+        })));
       }
 
       const { data: reactionsData, error: reactionsError } = await supabase
@@ -41,7 +58,7 @@ export const useChatRoom = (roomId: string) => {
 
       if (reactionsError) {
         console.error('Error fetching reactions:', reactionsError);
-      } else {
+      } else if (isMounted && reactionsData) {
         setReactions(reactionsData);
       }
 
@@ -53,14 +70,16 @@ export const useChatRoom = (roomId: string) => {
 
       if (messageReactionsError) {
         console.error('Error fetching message reactions:', messageReactionsError);
-      } else {
-        setMessageReactions(messageReactionsData || []);
+      } else if (isMounted && messageReactionsData) {
+        setMessageReactions((messageReactionsData || []).map(r => ({
+          ...r,
+          type: (r as MessageReaction).type || 'like',
+        })));
       }
     };
 
     fetchInitialData();
 
-    // Set up subscriptions with improved configuration for mobile
     const messageChannel = supabase.channel(`messages-${roomId}`, {
       config: {
         broadcast: { self: false },
@@ -75,7 +94,6 @@ export const useChatRoom = (roomId: string) => {
       }, (payload) => {
         const newMessage = { ...payload.new, isSender: payload.new.user_id === currentUserIdRef.current } as Message;
         setMessages(prevMessages => {
-          // Prevent duplicates
           if (prevMessages.some(m => m.id === newMessage.id)) {
             return prevMessages;
           }
@@ -127,7 +145,7 @@ export const useChatRoom = (roomId: string) => {
         filter: `room_id=eq.${roomId}`
       }, (payload) => {
         setMessageReactions(prevReactions => {
-          const newReaction = payload.new as MessageReaction;
+          const newReaction = { ...payload.new, type: (payload.new as MessageReaction).type || 'like' } as MessageReaction;
           if (prevReactions.some(r => r.id === newReaction.id)) {
             return prevReactions;
           }
@@ -140,27 +158,62 @@ export const useChatRoom = (roomId: string) => {
         }
       });
 
-    // Cleanup subscriptions
     return () => {
+      isMounted = false;
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(reactionChannel);
       supabase.removeChannel(messageReactionChannel);
     };
   }, [roomId]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    const newMessage = {
+  const sendMessage = useCallback(async (
+    text: string,
+    options?: { mentions?: string[]; isHost?: boolean; hostName?: string }
+  ) => {
+    const { mentions = [], isHost = false, hostName } = options || {};
+    const baseMessage = {
       text,
       room_id: roomId,
       user_id: currentUserIdRef.current,
+      mentions,
+      is_host: isHost,
+      host_name: isHost ? hostName : null,
     };
-    const { error } = await supabase.from('messages').insert([newMessage]);
+
+    if (!isSupabaseConfigured) {
+      setMessages(prev => [
+        ...prev,
+        {
+          ...baseMessage,
+          id: `local-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          isSender: true,
+          userId: currentUserIdRef.current,
+        } as Message,
+      ]);
+      return;
+    }
+
+    const { error } = await supabase.from('messages').insert([baseMessage]);
     if (error) {
       console.error('Error sending message:', error);
     }
   }, [roomId]);
 
   const addReaction = useCallback(async (type: ReactionType) => {
+    if (!isSupabaseConfigured) {
+      setReactions(prev => [
+        ...prev,
+        {
+          id: `local-${Date.now()}`,
+          type,
+          room_id: roomId,
+          timestamp: new Date().toISOString(),
+        } as Reaction,
+      ]);
+      return;
+    }
+
     const newReaction = {
       type,
       room_id: roomId,
@@ -171,11 +224,27 @@ export const useChatRoom = (roomId: string) => {
     }
   }, [roomId]);
 
-  const addMessageReaction = useCallback(async (messageId: string) => {
+  const addMessageReaction = useCallback(async (messageId: string, type: ReactionType) => {
+    if (!isSupabaseConfigured) {
+      setMessageReactions(prev => [
+        ...prev,
+        {
+          id: `local-${Date.now()}`,
+          message_id: messageId,
+          user_id: currentUserIdRef.current,
+          room_id: roomId,
+          type,
+          timestamp: new Date().toISOString(),
+        } as MessageReaction,
+      ]);
+      return;
+    }
+
     const newReaction = {
       message_id: messageId,
       user_id: currentUserIdRef.current,
       room_id: roomId,
+      type,
     };
     const { error } = await supabase.from('message_reactions').insert([newReaction]);
     if (error) {
