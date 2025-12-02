@@ -106,12 +106,12 @@ const RoomPage: React.FC = () => {
 
   const attendeeShareLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
-    return `${window.location.origin}/room/${encodeURIComponent(decodedRoomId)}`;
+    return `${window.location.origin}/#/room/${encodeURIComponent(decodedRoomId)}`;
   }, [decodedRoomId]);
 
   const hostShareLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
-    const base = `${window.location.origin}/room/${encodeURIComponent(decodedRoomId)}`;
+    const base = `${window.location.origin}/#/room/${encodeURIComponent(decodedRoomId)}`;
     const hostParam = new URLSearchParams({ host: '1', hostName });
     return `${base}?${hostParam.toString()}`;
   }, [decodedRoomId, hostName]);
