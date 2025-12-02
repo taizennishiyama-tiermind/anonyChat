@@ -2,7 +2,9 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>匿名リアルタイムチャット</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -39,6 +41,29 @@
       }
       .animate-fly-up {
         animation: fly-up 1s ease-out forwards;
+      }
+
+      /* Mobile optimizations */
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+
+      body {
+        overscroll-behavior: none;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      input, textarea {
+        touch-action: manipulation;
+      }
+
+      @supports (-webkit-touch-callout: none) {
+        /* iOS specific styles */
+        body {
+          min-height: -webkit-fill-available;
+        }
       }
     </style>
   <script type="importmap">
