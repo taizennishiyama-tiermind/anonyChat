@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
+import SpeedInsights from './components/SpeedInsights';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,5 +16,6 @@ root.render(
     <HashRouter>
       <App />
     </HashRouter>
+    <SpeedInsights />
   </React.StrictMode>
 );
